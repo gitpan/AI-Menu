@@ -1,0 +1,187 @@
+NAME
+    AI::Menu
+
+SYNOPSIS
+     use AI::Menu;
+
+     my $factory = new AI::Menu::Factory;
+
+     my $menu = $factory->generate($hash_of_functions);
+     my $menu = $factory->generate($hash_of_functions, $hash_of_categories);
+     my $menu = $factory->generate($graph);
+
+DESCRIPTION
+    An "AI::Menu::Factory" object generates "Tree::Nary" objects from
+    directed graphs (Graph::Directed or an object with the same methods) or
+    a description of the function set.
+
+    The algorithm is not very efficient (approximately O(F^6), F being the
+    number of functions). It is also not quite as intelligent as it should
+    be. You should cache the results instead of repeatedly calculating them.
+
+    As the algorithm is optimized or more efficient algorithms are found,
+    they will be incorporated. The interface for generating the trees should
+    not change too much. The resulting object might become a Tree::Nary
+    object encased in an AI::Menu object.
+
+METHODS
+    All of the following methods (except generate) are available in the
+    "new" function when creating the "AI::Menu::Factory" object.
+
+    generate
+        This function does some housekeeping before calling a configurable
+        module to generate the tree.
+
+        If called with a single hash reference, the hash is assumed to be a
+        list of functions mapping to array references containing a list of
+        categories. It is further assumed that the sets of function names
+        and category names are disjoint. A closure is created for the
+        "leaf_q" function which returns true if its argument is a key in the
+        hash reference. The complete graph is created from this single hash
+        reference: if a category can reach another category through a
+        function, then an edge is inserted between the two categories. This
+        edge is bidirectional.
+
+        If called with two hash references, the first hash is treated as
+        before, but the second hash reference is considered a mapping of
+        categories to categories. This second hash is used instead of
+        automatically generating the information from the first hash.
+
+        If called with a single object that is not a hash reference, then
+        the argument is considered a graph object (usually of
+        Graph::Directed). The "leaf_q" function will need to be defined.
+
+    leaf_q
+        This function returns true if the argument represents a function
+        (leaf in the graph). It returns false if the argument represents a
+        category. This may be set either when the "AI::Menu::Factory" object
+        is created or through a method call. The method call with no
+        argument returns the current function.
+
+    maker
+        This is the package used to create the menu from the graph. The
+        following call is made:
+
+             my $menu = $self -> {maker} -> new(
+                 width => $self->{width},
+                 weight_f => $self -> {weight_f},
+                 leaf_q => $leafq,
+             );
+     
+             return $menu -> generate_tree($g, $optscore);
+
+        The "$optscore" value is the score for the optimum tree. Once a tree
+        is found with this score, searching should stop.
+
+    new Creates an "AI::Menu::Factory" object. Optional arguments are
+        key/value pairs taken from this list of methods except for
+        "generate" and "new".
+
+    weight_f
+        This function is used to calculate the edge weights in the graph. It
+        is called with four arguments: the object generating the tree, the
+        graph object, the originating vertex, the destination vertex. The
+        function should return "undef" for an infinite weight.
+
+    width
+        This is the desired number of children per node. The optimal number
+        (and default) is three.
+
+EXAMPLE
+    The following example illustrates generating a menu from a list of
+    functions and printing the resulting tree using LaTeX.
+
+     my $factory = AI::Menu::Factory;
+
+     my $functions = {
+        a => [qw: A B D :],
+        b => [qw: C D E :],
+        c => [qw: A B C :],
+        d => [qw: E G H :],
+        e => [qw: A C E :],
+        f => [qw: A D F :],
+     };
+
+     $menu = $factory -> generate($functions);
+
+     # following borrowed from Tree::Nary's test.pl
+     sub node_build_string() {
+        my ($node, $ref_of_arg) = (shift, shift);
+        my $p = $ref_of_arg;
+        my $string;
+        my $c = $node->{data};
+
+        if(defined($p)) {
+           $string = $$p;
+        } else {
+           $string = "";
+        }
+    
+        if($node -> is_leaf($node)) {
+           $c = "\\leaf{\\mbox{ $c }}\n";
+        } else {
+           $c = "\\branch{" . $node -> n_children( $node ) . "}{$c}\n";
+        }
+    
+        $string .= $c;
+        $$p = $string;
+    
+        return($Tree::Nary::FALSE);
+     }
+ 
+     my $string;
+ 
+     $menu -> traverse( $menu,  
+                        $Tree::Nary::POST_ORDER,
+                        $Tree::Nary::TRAVERSE_ALL, -1,
+                        \&node_build_string, \$string);
+ 
+     print "$string\n";
+
+    The above code prints out the following:
+
+     \leaf{\mbox{ a }}
+     \leaf{\mbox{ c }}
+     \branch{2}{B}
+     \leaf{\mbox{ b }}
+     \leaf{\mbox{ d }}
+     \leaf{\mbox{ e }}
+     \branch{3}{C}
+     \leaf{\mbox{ f }}
+     \branch{3}{A}
+
+    This corresponds to the following tree:
+
+            A
+         /  |  \
+        f   C   B
+           /|\  |\
+          b d e c a
+
+BUGS
+    The optimal score is fixed at one. This means all possibilities are
+    searched each time. We need an algorithm that maps number of functions
+    to optimal score for a tree with arbitrary $width parameter.
+
+    While the algorithm seems inefficient, I am not aware of how far it is
+    from most efficient. Some work remains in this area.
+
+    The tree can be a bit strange. In fact, it usually is. The results
+    should be considered academic or just hints at this point. If you have
+    an interesting set of functions and categories, send them to me.
+
+    The algorithm needs some way to make certain categories more important
+    than others.
+
+SEE ALSO
+    the Graph::Directed manpage, the Tree::Nary manpage.
+
+AUTHOR
+    James Smith <jgsmith@jamesmith.com>
+
+COPYRIGHT
+    Copyright (C) 2001 Texas A&M University. All Rights Reserved.
+
+    This module is free software; you can redistribute it and/or modify it
+    under the same terms as Perl itself.
+
